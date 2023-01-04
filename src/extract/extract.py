@@ -20,6 +20,7 @@ class BIOExtracter(IExtract):
 
         tag_length = len(tag)
         content_length = len(content)
+        assert tag_length == content_length, f'tag len:{tag_length} != context len:{content_length}'
         entity_res = []
         
         
@@ -34,15 +35,19 @@ class BIOExtracter(IExtract):
                     for j in range(i + 1, content_length):
                         
                         if tag[j] == internal_tag:
-                            entity_res.append(content[i: j+1])
+                            continue
+                                
+                            # entity_res.append(content[i: j+1])
+                            
                             
 
                         else:
                             # single entity
                             if tag[j - 1] != internal_tag:
                                 entity_res.append(content[i])
+                                break
                             else:
-                                
+                                entity_res.append(content[i: j])
                                 break
                 else:
                     entity_res.append(content[i])
@@ -88,4 +93,3 @@ class BIOESExtracter(IExtract):
                     else:
                         break
         return entity_res
-   
