@@ -20,3 +20,6 @@ According to the loss and f1 score on validation dataset, I choose the model of 
 * F1 Score : 0.688
 * Precision : 0.659
 * Recall : 0.721
+
+# Inference
+![My Image](./storage/images/inference.png)
