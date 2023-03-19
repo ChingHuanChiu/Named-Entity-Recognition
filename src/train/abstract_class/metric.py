@@ -29,16 +29,3 @@ class AbcMetric(metaclass=ABCMeta):
     
     
 
-class ICounter(metaclass=ABCMeta):
-
-    @abstractmethod
-    def count_gold_num(slef, y_true):
-        pass
-
-    @abstractmethod
-    def count_pred_num(self, y_pred):
-        pass
-
-    @abstractmethod
-    def count_correct_num(y_true, y_pred):
-        pass

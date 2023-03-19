@@ -1,6 +1,5 @@
 from typing import Dict, Union, List
 
-from src.train.abstract_class.metric import ICounter
 
 
 class TensorBoard:
@@ -37,7 +36,7 @@ class TensorBoard:
         if optimizer is not None:
 
             for idx, lr in enumerate(self._get_lr(optimizer=optimizer), start=1):
-                self.writer.add_scalar(tag='lr_' + str(idx),
+                self.writer.add_scalar(tag=str(idx),
                                         scalar_value=lr, 
                                         global_step=step
                                         )

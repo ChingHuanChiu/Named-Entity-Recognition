@@ -1,10 +1,12 @@
 from typing import Optional
-from unicodedata import bidirectional, name
 
+import numpy as np
 import torch
 from torch import nn
 from transformers import BertModel
 from torchcrf import CRF
+import torch.nn.functional as F
+
 
 
 from src.model.config import HUGGINGFACE_MODEL, SEQ_MAX_LENGTH
@@ -13,55 +15,42 @@ from src.model.config import HUGGINGFACE_MODEL, SEQ_MAX_LENGTH
 class NERBertWithCRF(nn.Module):
     
 
-    def __init__(self, num_label: int, freeze_bert: bool) -> None:
+    def __init__(self, num_label: int, hidden_dropout_prob=0.2) -> None:
         super().__init__()
         self.num_label = num_label
-        self.freeze_bert = freeze_bert
-
  
         self.bert = BertModel.from_pretrained(HUGGINGFACE_MODEL, output_attentions=True)
         
-        if self.freeze_bert:
-            for param in self.bert.parameters():
-                param.requires_grad = False
-
-        
+        self.dropout = nn.Dropout(hidden_dropout_prob)
  
         self.logits = nn.Linear(768, self.num_label)
         self.crf = CRF(self.num_label, batch_first=True)
-
-            
 
 
     def forward(self, inputs_dict, y_true=None):
 
         mask = inputs_dict["attention_mask"]
+        
+        mask = mask.bool()
+        
 
         last_hidden_state = self.bert(**inputs_dict).last_hidden_state
-
-        # remove [CLS] hidden state
-        last_hidden_state = last_hidden_state[:, 1:, :]
-        mask = mask[:, 1:].bool()
-        # TODO: move to  the unit test
-        assert y_true.size()[-1] == SEQ_MAX_LENGTH - 1, "wrong shape in y_true"
-
+        
+        last_hidden_state = self.dropout(last_hidden_state)
 
         logits = self.logits(last_hidden_state)
 
-
-
+        
         decode_sequence = self.crf.decode(emissions=logits, mask=mask)
 
 
         if y_true is not None:
+            
             crf_log_likelihood = self.crf(emissions=logits, tags=y_true, mask=mask, reduction='mean')
             
             return crf_log_likelihood, decode_sequence
             
-
-
         return  decode_sequence
-
 
     
     def init_weights(self):
@@ -74,20 +63,14 @@ class NERBertWithCRF(nn.Module):
 
 
 
-
 class NERBertBiLSTMWithCRF(nn.Module):
 
-    def __init__(self, num_label: int, freeze_bert: bool, lstm_num_layers: int, local_rank:int) -> None:
+    def __init__(self, num_label: int, lstm_num_layers: int, local_rank:int) -> None:
         super().__init__()
         self.num_label = num_label
-        self.freeze_bert = freeze_bert
         self.local_rank = local_rank
         self.bert = BertModel.from_pretrained(HUGGINGFACE_MODEL, output_attentions=True)
             
-        if self.freeze_bert:
-            for param in self.bert.parameters():
-                param.requires_grad = False
-
         
         self.num_layers = lstm_num_layers
         self.bi_lstm = nn.LSTM(
@@ -99,6 +82,7 @@ class NERBertBiLSTMWithCRF(nn.Module):
 
         
         self.linear = nn.Linear(256, num_label)
+        self.dropout = nn.Dropout(p=0.1)
 
         self.crf = CRF(num_label, batch_first=True)
 
@@ -106,19 +90,20 @@ class NERBertBiLSTMWithCRF(nn.Module):
 
     def forward(self, inputs_dict, y_true=None):
         mask = inputs_dict["attention_mask"]
+        mask = mask.bool()
 
         last_hidden_state = self.bert(**inputs_dict).last_hidden_state
 
-        # remove [CLS] hidden state
-        bert_hidden_state = last_hidden_state[:, 1:, :]
-        mask = mask[:, 1:].bool()
-        h_0 = torch.randn(2 * self.num_layers, bert_hidden_state.size()[0], 128).to(torch.device("cuda", self.local_rank)) #shape: (num_direction * num_layers, bs, hidden_size)
-        c_0 = torch.randn(2 * self.num_layers, bert_hidden_state.size()[0], 128).to(torch.device("cuda", self.local_rank))
 
-
-        last_hidden_state, (h,c) = self.bi_lstm(bert_hidden_state, (h_0, c_0))
         
-        logits = self.linear(last_hidden_state)
+        h_0 = torch.randn(2 * self.num_layers, last_hidden_state.size()[0], 128).to(torch.device("cuda", self.local_rank)) #shape: (num_direction * num_layers, bs, hidden_size)
+        c_0 = torch.randn(2 * self.num_layers, last_hidden_state.size()[0], 128).to(torch.device("cuda", self.local_rank))
+
+
+        last_hidden_state, (h,c) = self.bi_lstm(last_hidden_state, (h_0, c_0))
+        
+        logits = self.linear(self.dropout(F.relu(last_hidden_state)))
+    
         
         decode_sequence = self.crf.decode(emissions=logits, mask=mask)
 
@@ -158,28 +143,41 @@ class NERBertCNNWithCRF(nn.Module):
             
         
         #https://pytorch.org/docs/stable/generated/torch.nn.Conv1d.html
-        self.cnn1d = nn.Conv1d(SEQ_MAX_LENGTH - 1, SEQ_MAX_LENGTH - 1, 5, stride=2) # dimension: 382
-        self.cnn1d_dilation2 = nn.Conv1d(SEQ_MAX_LENGTH - 1, SEQ_MAX_LENGTH - 1, 3, stride=2, dilation=2)
+        filter_sizes = [5] 
+        num_filters = [256] 
+        self.conv1d_list = nn.ModuleList([
+            nn.Conv1d(in_channels=768,
+                      out_channels=num_filters[i],
+                      kernel_size=filter_sizes[i],
+                      padding='same'
+                     )
+            for i in range(len(filter_sizes))
+        ])
         
-        self.linear = nn.Linear(189, num_label)
+        
+        
+        self.linear = nn.Linear(np.sum(num_filters), num_label)
   
 
         self.crf = CRF(num_label, batch_first=True)
+        self.dropout = nn.Dropout(p=0.1)
 
 
     def forward(self, inputs_dict, y_true=None):
         mask = inputs_dict["attention_mask"]
+        mask = mask.bool()
 
         last_hidden_state = self.bert(**inputs_dict).last_hidden_state
 
-        # remove [CLS] hidden state
-        bert_hidden_state = last_hidden_state[:, 1:, :]
-        mask = mask[:, 1:].bool()
-
+  
+       
+        x_reshaped = last_hidden_state.permute(0, 2, 1)
+        x_conv_list = [F.relu(conv1d(x_reshaped)) for conv1d in self.conv1d_list]
+        # x_pool_list = [F.max_pool1d(x_conv, kernel_size=x_conv.shape[2]) for x_conv in x_conv_list]
         
-        cnn_hidden_state = self.cnn1d(bert_hidden_state)
-        cnn_hidden_state = self.cnn1d_dilation2(cnn_hidden_state)    
-        logits = self.linear(cnn_hidden_state)
+        x_fc = torch.cat([conv.permute(0, 2, 1) for conv in x_conv_list], dim=-1)
+
+        logits = self.linear(self.dropout(x_fc))
 
         decode_sequence = self.crf.decode(emissions=logits, mask=mask)
 
@@ -196,17 +194,9 @@ class NERBertCNNWithCRF(nn.Module):
     
     def init_weights(self):
 
-        for m in self.linear.modules():
-            nn.init.xavier_normal_(m.weight.data)
-            if m.bias is not None:
-                m.bias.data.zero_()
-
-        for m in self.cnn1d.modules():
-            for n, p in m.named_parameters():
-                    if 'weight' in n:
-                        nn.init.xavier_normal_(p)
-                    elif 'bias' in n:
-                        nn.init.zeros_(p)
+        for m in self.children():
+            if isinstance(m, (nn.Linear, nn.Conv1d)):
+                nn.init.xavier_normal_(m.weight)
 
 
 

@@ -1,80 +1,47 @@
 
 from typing import Union
 
+from seqeval.metrics import accuracy_score
+from seqeval.metrics import recall_score
+from seqeval.metrics import precision_score
+from seqeval.metrics import f1_score
+from seqeval.scheme import IOB2
+
+from src.train.abstract_class.metric import AbcMetric
+from src.model.config import labelTOtags
 
 
-from src.train.abstract_class.metric import AbcMetric, ICounter
 
-
-
-class NerMetric(AbcMetric):
-    def __init__(self, counter: ICounter) -> None:
-        self.counter = counter()
+class BIONerMetric(AbcMetric):
+    
+    def __init__(self) -> None:
         
+        self.accuracy = 0
         self.precision = 0
+        self.f1_score = 0
         self.recall = 0
-        self.f1 = 0
-        self.gold_num = 0
-        self.pred_num = 0
-        self.correct_num = 0
         
         
-    def calculate_metric(self, y_batch, y_pred) -> None:
-        """
-        calculate the all gold_num, pred_num, correct_num in an epoch
-        @param y_batch: true label, shape: [batch size, max_seq_length]
-        @param y_pred: shape: [batch size, max_seq_length]
-        """  
-
-        for pred, true in zip(y_pred, y_batch):
-
-            self.gold_num += self.counter.count_gold_num(true)
-            self.pred_num += self.counter.count_pred_num(pred)
-            self.correct_num += self.counter.count_correct_num(true, pred)
-            
-    
-
-        # add instance attribute for the 'get_result' method
-        self.precision = self._precision(self.correct_num, self.pred_num)
-        self.recall = self._recall(self.gold_num, self.correct_num)
-        self.f1 = self._f1_score(self.precision, self.recall)
+    def calculate_metric(self, y_true, y_pred) -> None:
+        
+        y_true = y_true.numpy().tolist()
+        y_true = [list(map(labelTOtags.get, _list)) for _list in y_true]
+        
+        y_pred = y_pred.numpy().tolist()
+        y_pred = [list(map(labelTOtags.get, _list)) for _list in y_pred]
         
         
-    
-    def reset(self):
-
+        
+        self.accuracy = accuracy_score(y_true, y_pred)
+        self.precision = precision_score(y_true, y_pred, mode='strict', scheme=IOB2)
+        self.recall = recall_score(y_true, y_pred, mode='strict', scheme=IOB2)
+        self.f1_score = f1_score(y_true, y_pred, mode='strict', scheme=IOB2)
+        
+      
+    def reset(self) -> None:
+        
         for name, metric in self.__dict__.items():
             
-            if not isinstance(metric, ICounter):
-                self.__dict__[name] = 0
-
-
-    def _precision(self, correct_num: int, predict_num: int) -> Union[float, int]:
-        
-        if predict_num != 0:
-            return correct_num / predict_num
-        
-        return 0
-
-
-    def _recall(self, gold_num: int, correct_num: int) -> Union[float, int]:
-        if gold_num != 0:
-            return correct_num / gold_num
-        
-        return 0
-
-
-    def _f1_score(self, precision: float, recall: float) -> float:
-        
-        if precision + recall != 0:
-            score = (2*precision*recall) / (precision + recall)
-            return score
-
-        return 0
-
-
-    
-
-
+            self.__dict__[name] = 0
 
 

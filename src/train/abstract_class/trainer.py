@@ -12,7 +12,6 @@ import torch.distributed as dist
 
 
 
-from src.train.abstract_class.metric import ICounter
 from src.train.tensorboard import TensorBoard 
 from src.model.config import SEQ_MAX_LENGTH
 from src.train.earlystopping import EarlyStopping
