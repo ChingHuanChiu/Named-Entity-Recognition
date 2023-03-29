@@ -68,9 +68,10 @@ class BIOExtracter(IExtract):
 
                     start, end = start.item(), end.item()
                     word = content[start:end]
-                    pred_label['content'] = content
-                    pred_label['decode_sequence'] = predictions
                     pred_label[label] += f'{word}、'
+
+                pred_label['content'] = content
+                pred_label['decode_sequence'] = predictions
                     # pred_label.append(
                     #     {
                     #         "entity_group": label,

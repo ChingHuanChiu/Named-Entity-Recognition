@@ -154,8 +154,7 @@ class NerTrainer(DDPTrainer):
         RANK = dist.get_rank()
         
         if RANK == 0:
-            val_writer = SummaryWriter(f'/gcs/pchome-hadoopincloud-hadoop/user/stevenchiou/pytorch/ner/v2.0.1.4/tensorboard/val/tb_ep_{self.epochs}_bs_{self.bs}')
-            # val_writer = SummaryWriter('./')
+            val_writer = SummaryWriter('./storage')
 
         val_metric = self.metric
         self.model.eval()
@@ -262,10 +261,8 @@ def main():
     ner_trainer.start_to_train(
                     train_data_loader=train_loader,
                     epochs=EPOCHS,
-                    # checkpoint_path='./',
-                    # tensorboard_path='.',
-                    checkpoint_path=f'/gcs/pchome-hadoopincloud-hadoop/user/stevenchiou/pytorch/ner/v2.0.1.4/ckpt_ep_{EPOCHS}_bs_{BS}',
-                    tensorboard_path=f'/gcs/pchome-hadoopincloud-hadoop/user/stevenchiou/pytorch/ner/v2.0.1.4/tensorboard/train/tb_ep_{EPOCHS}_bs_{BS}',
+                    checkpoint_path='./storaage',
+                    tensorboard_path='./storage',
                     local_rank=local_rank,
                     sampler=train_sampler,
                     earlystopping_tolerance=10
