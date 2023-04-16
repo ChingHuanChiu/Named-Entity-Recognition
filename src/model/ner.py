@@ -65,10 +65,16 @@ class NERBertWithCRF(nn.Module):
 
 class NERBertBiLSTMWithCRF(nn.Module):
 
-    def __init__(self, num_label: int, lstm_num_layers: int, local_rank:int) -> None:
+    def __init__(self, 
+                 num_label: int, 
+                 lstm_num_layers: int, 
+                 local_rank:int,
+                 device: str) -> None:
+
         super().__init__()
         self.num_label = num_label
         self.local_rank = local_rank
+        self.device = device
         self.bert = BertModel.from_pretrained(HUGGINGFACE_MODEL, output_attentions=True)
             
         
@@ -96,8 +102,8 @@ class NERBertBiLSTMWithCRF(nn.Module):
 
 
         
-        h_0 = torch.randn(2 * self.num_layers, last_hidden_state.size()[0], 128).to(torch.device("cuda", self.local_rank)) #shape: (num_direction * num_layers, bs, hidden_size)
-        c_0 = torch.randn(2 * self.num_layers, last_hidden_state.size()[0], 128).to(torch.device("cuda", self.local_rank))
+        h_0 = torch.randn(2 * self.num_layers, last_hidden_state.size()[0], 128).to(torch.device(self.device, self.local_rank)) #shape: (num_direction * num_layers, bs, hidden_size)
+        c_0 = torch.randn(2 * self.num_layers, last_hidden_state.size()[0], 128).to(torch.device(self.device, self.local_rank))
 
 
         last_hidden_state, (h,c) = self.bi_lstm(last_hidden_state, (h_0, c_0))

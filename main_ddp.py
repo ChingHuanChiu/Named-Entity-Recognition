@@ -242,7 +242,7 @@ def main():
 
     
     NUM_TRAINING_STEPS = EPOCHS * len(train_loader)
-    model = NERBertBiLSTMWithCRF(num_label=19, lstm_num_layers=1, local_rank=local_rank)#NERBertWithCRF(5)
+    model = NERBertBiLSTMWithCRF(num_label=19, lstm_num_layers=1, local_rank=local_rank, device='cuda')#NERBertWithCRF(5)
     model.init_weights()
     
     

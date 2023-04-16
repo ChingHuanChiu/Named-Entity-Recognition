@@ -26,7 +26,7 @@ if __name__ == '__main__':
     DEVICE = 'cpu'#'cuda:0'
     TOKENIZER = AutoTokenizer.from_pretrained(HUGGINGFACE_MODEL)
 
-    model = NERBertBiLSTMWithCRF(19, 1, local_rank=0)
+    model = NERBertBiLSTMWithCRF(19, 1, local_rank=0, device=DEVICE)
     model = load_model_from_checkpoint(device=DEVICE, model=model, model_ckpt=CKPT_PATH, is_ddp_model=True)
     model.to(DEVICE)
     model.eval()
