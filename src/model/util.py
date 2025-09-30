@@ -4,8 +4,14 @@ import torch
 import dill
 
 
-def load_model_from_checkpoint(device: str, model: torch.nn.Module, model_ckpt: str, is_ddp_model: bool, optimizer = None):
-    """reference: https://pytorch.org/tutorials/beginner/saving_loading_models.html
+def load_model_from_checkpoint(
+    device: str, 
+    model: torch.nn.Module, 
+    model_ckpt: str, 
+    is_ddp_model: bool, 
+    optimizer = None
+):
+    """Reference: https://pytorch.org/tutorials/beginner/saving_loading_models.html
     """
     ckpt = torch.load(model_ckpt, map_location=device, pickle_module=dill)
 
@@ -32,12 +38,3 @@ def load_model_from_checkpoint(device: str, model: torch.nn.Module, model_ckpt: 
         return model, optimizer
     
     return model
-
-
-
-
-
-
-
-
-

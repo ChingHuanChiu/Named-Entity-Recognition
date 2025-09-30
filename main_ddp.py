@@ -30,7 +30,6 @@ from src.model.ner import NERBertBiLSTMWithCRF, NERBertCNNWithCRF, NERBertWithCR
 tokenizer = AutoTokenizer.from_pretrained(HUGGINGFACE_MODEL)
 
 
-
 class NerDataset(Dataset):
     def __init__(self, dataframe: pd.DataFrame):
         super().__init__()
@@ -83,11 +82,20 @@ def adjust_label_collote_fn(batch_examples, tokenizer):
     
     return batch_tokenize_content, torch.tensor(batch_adjust_tags)
         
-        
-
     
 class NerTrainer(DDPTrainer):
-    def __init__(self, model, metric, val_dataloader, initial_lr, warm_up_step, num_training_steps, local_rank, epochs, bs):
+    def __init__(
+        self, 
+        model, 
+        metric, 
+        val_dataloader, 
+        initial_lr, 
+        warm_up_step, 
+        num_training_steps, 
+        local_rank, 
+        epochs, 
+        bs
+    ):
         self.device = torch.device("cuda", local_rank)
         print(f'using device: {self.device}')
         super().__init__()
@@ -96,12 +104,11 @@ class NerTrainer(DDPTrainer):
         
         self.model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
         self.model = torch.nn.parallel.DistributedDataParallel(
-                                                               self.model, 
-                                                               device_ids=[local_rank],
-                                                               output_device=local_rank,
-                                                               find_unused_parameters=True
-                                                                )
-        
+            self.model, 
+            device_ids=[local_rank],
+            output_device=local_rank,
+            find_unused_parameters=True
+        )
         
         self.metric = metric
         self.val_dataloader = val_dataloader
@@ -109,19 +116,29 @@ class NerTrainer(DDPTrainer):
         # crf and lstm lr must be larger than bert
         bert_layer = list(map(id, self.model.module.bert.parameters()))
         other_layer = filter(lambda p: id(p) not in bert_layer, self.model.module.parameters())
-        self.optimizer = torch.optim.Adam([{'params': self.model.module.bert.parameters(), 'lr': initial_lr},
-                                           {'params': other_layer, 'lr': initial_lr * 100},
-                                          ], lr=0.001)
+        self.optimizer = torch.optim.Adam(
+            [
+                {
+                    'params': self.model.module.bert.parameters(), 
+                    'lr': initial_lr
+                },
+                {
+                    'params': other_layer, 
+                    'lr': initial_lr * 100
+                },
+                                          
+            ], 
+            lr=0.001
+        )
         self.lr_scheduler = get_cosine_schedule_with_warmup(
-                                                            optimizer=self.optimizer,
-                                                            num_warmup_steps=warm_up_step,
-                                                            num_training_steps=num_training_steps
-                                                             )
+            optimizer=self.optimizer,
+            num_warmup_steps=warm_up_step,
+            num_training_steps=num_training_steps
+        )
         
         self.epochs = epochs
         self.bs = bs
 
-        
     def train_step(self, X_batch, y_batch):
         
         X_batch = {k : v.to(self.device) for k, v in X_batch.items()}
@@ -133,7 +150,6 @@ class NerTrainer(DDPTrainer):
         decode_sequence = [F.pad(torch.Tensor(i), (0, SEQ_MAX_LENGTH - len(i)), mode='constant', value=0) for i in decode_sequence]
         
         decode_sequence = torch.stack(decode_sequence)
-        
         
         loss = -1 * crf_log_likelihood
         
@@ -148,7 +164,6 @@ class NerTrainer(DDPTrainer):
         
         return loss, decode_sequence
     
-        
     def validation_loop(self, epoch):
         VALSTEP_PER_EPOCH = len(self.val_dataloader)
         RANK = dist.get_rank()
@@ -175,13 +190,11 @@ class NerTrainer(DDPTrainer):
                 y_true_val = torch.cat(y_true_val)
                 
                 y_pred_val = torch.cat(y_pred_val)
-     
                 
                 if RANK == 0:                    
                     
                     val_metric.calculate_metric(y_true_val.cpu(), y_pred_val.cpu())
                 dist.barrier()
-                    
                     
             rank_epoch_val_loss = val_running_loss / VALSTEP_PER_EPOCH
             sum_rank_val_epoch_loss = self.reduce_sum_all(rank_epoch_val_loss)
@@ -204,7 +217,6 @@ class NerTrainer(DDPTrainer):
                 val_metric.reset()
             dist.barrier()
         return epoch_val_loss
-    
 
 
 def main():
@@ -229,8 +241,6 @@ def main():
     train = pd.read_csv('./storage/data/train.csv', converters={'tag_id': literal_eval})
     val = pd.read_csv('./storage/data/validation.csv', converters={'tag_id': literal_eval})
 
-    
-
     train_dataset = NerDataset(dataframe=train)
     train_sampler = DistributedSampler(train_dataset)
     train_loader = DataLoader(train_dataset, batch_size=BS, sampler=train_sampler, collate_fn=partial(adjust_label_collote_fn, tokenizer=tokenizer))
@@ -246,27 +256,27 @@ def main():
     model.init_weights()
     
     
-    ner_trainer = NerTrainer(model=model, 
-                             metric= BIONerMetric(), 
-                             val_dataloader=val_loader, 
-                             initial_lr=initial_lr, 
-                             warm_up_step=warmup_step, 
-                             num_training_steps=NUM_TRAINING_STEPS, 
-                             local_rank=local_rank,
-                             epochs = EPOCHS,
-                             bs=BS
-                              )
-    
+    ner_trainer = NerTrainer(
+        model=model, 
+        metric= BIONerMetric(), 
+        val_dataloader=val_loader, 
+        initial_lr=initial_lr, 
+        warm_up_step=warmup_step, 
+        num_training_steps=NUM_TRAINING_STEPS, 
+        local_rank=local_rank,
+        epochs = EPOCHS,
+        bs=BS
+    )
     
     ner_trainer.start_to_train(
-                    train_data_loader=train_loader,
-                    epochs=EPOCHS,
-                    checkpoint_path='./storaage',
-                    tensorboard_path='./storage',
-                    local_rank=local_rank,
-                    sampler=train_sampler,
-                    earlystopping_tolerance=10
-                        )
+        train_data_loader=train_loader,
+        epochs=EPOCHS,
+        checkpoint_path='./storaage',
+        tensorboard_path='./storage',
+        local_rank=local_rank,
+        sampler=train_sampler,
+        earlystopping_tolerance=10
+    )
     
 if __name__ == '__main__':
 

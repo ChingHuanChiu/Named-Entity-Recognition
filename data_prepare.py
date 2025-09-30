@@ -1,16 +1,20 @@
-from typing import List
-
 import pandas as pd
-import numpy as np
 
 from src.model.config import labelTOtags
 
 
-MAP_DICT = {"B_Thing": 1, "B_Person": 3, "B_Location": 5, "B_Time": 7, "B_Metric": 9, "B_Organization": 11, "B_Abstract": 13,  "B_Physical":15,"B_Term": 17,
-            "I_Thing": 2, "I_Person": 4, "I_Location": 6, "I_Time": 8, "I_Metric": 10, "I_Organization": 12, "I_Abstract": 14, "I_Physical": 16, "I_Term": 18,
-            "O": 0, "B_ABstract": 13, "I_ABstract": 14
-            }
-
+MAP_DICT = {
+    "B_Thing": 1, "B_Person": 3, 
+    "B_Location": 5, "B_Time": 7, 
+    "B_Metric": 9, "B_Organization": 11, 
+    "B_Abstract": 13,  "B_Physical":15,
+    "B_Term": 17,"I_Thing": 2, 
+    "I_Person": 4, "I_Location": 6, 
+    "I_Time": 8, "I_Metric": 10, 
+    "I_Organization": 12, "I_Abstract": 14,
+    "I_Physical": 16, "I_Term": 18,
+    "O": 0, "B_ABstract": 13, "I_ABstract": 14
+}
 
 
 def convert_textfile_to_df(datapath: str, max_length: int) -> pd.DataFrame:
@@ -60,8 +64,6 @@ def convert_textfile_to_df(datapath: str, max_length: int) -> pd.DataFrame:
                     
                 assert len(context) == len(tag)
 
-                
-
             else:
 
                 context_result.append(context)
@@ -75,6 +77,3 @@ def convert_textfile_to_df(datapath: str, max_length: int) -> pd.DataFrame:
         res_dict['tag_id'] = tag_id_result
         res_df = pd.DataFrame(res_dict)
     return res_df
-
-
-

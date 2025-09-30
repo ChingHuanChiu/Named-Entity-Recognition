@@ -10,7 +10,6 @@ import torch
 from src.model.config import SEQ_MAX_LENGTH, labelTOtags
 
 
-
 class IExtract(metaclass=ABCMeta):
 
     @abstractmethod
@@ -18,7 +17,6 @@ class IExtract(metaclass=ABCMeta):
         raise NotImplemented("not implemented !")
 
 
-    
 class BIOExtracter(IExtract):
     
     def __init__(self, model: torch.nn.Module, device: str, tokenizer) -> None:
@@ -27,7 +25,6 @@ class BIOExtracter(IExtract):
         self.device = device
         self.tokenizer = tokenizer
 
-        
     def extract(self, content: str) -> Dict[str, str]:
         results = []
         with torch.no_grad():
@@ -37,7 +34,6 @@ class BIOExtracter(IExtract):
             inputs = inputs.to(self.device)
             
             predictions = self.model(inputs)[0][1: -1]
-            
     
             pred_label = defaultdict(str)
             idx = 0
@@ -83,34 +79,40 @@ class BIOExtracter(IExtract):
                 idx += 1
         return pred_label
                 
-                
     @staticmethod
     def find_indices(list_to_check, item_to_find) -> List[int]:
         array = np.array(list_to_check)
         indices = np.where(array == item_to_find)[0]
         return list(indices)
     
-    
     def _adjust_start_end_idx_from_offsets(self, idx_list: List[int], offsets) -> Tuple:
-        """adjust the start idx and end idx with the special segment token , 
-        e.g. context: 德國 homedics ; tokenize : ['德', '國', 'home', '##di', '##cs']
-             offsets: tensor([[ 0,  1],
-                                [ 1,  2],
-                                [ 3,  7],
-                                [ 7,  9],
-                                [9, 11]))
-        start idx of offsets must be with 'home' token and end idx of offsets must be with '##cs' token from the 'homedics' context
-        
-        @params idx_list: list: the index of the offsets which has same word ids
-                                e.g. tokenize : ['德', '國', 'home', '##di', '##cs'] ;
-                                     word_id : [0, 1, 2,2,2] 
-                                     idx_list : [2, 3, 4]
-
+       
         """
+        Adjust the start and end indices from the offsets list based on the indices list.
+
+        Args:
+            idx_list : List[int]
+                A list of indices from the offsets list.
+            offsets : List[int]
+                A list of offsets.
+
+        Returns:
+            Tuple[int, int]
+                A tuple containing the start and end indices after adjustment.
         
+        Example:
+            context: 德國 homedics ; tokenize : ['德', '國', 'home', '##di', '##cs']
+            offsets: tensor([[ 0,  1],
+                            [ 1,  2],
+                            [ 3,  7],
+                            [ 7,  9],
+                            [9, 11]))
+            idx_list: [2, 3, 4]
+            return: (3, 9)
+            start idx of offsets must be with 'home' token and end idx of offsets must be with '##cs' token from the 'homedics' context
+        
+        """
         start, *_, end = idx_list
         start_token_offset, *_, end_token_offset = offsets[start: end + 1]
 
-        
-        
         return start_token_offset[0], end_token_offset[-1]

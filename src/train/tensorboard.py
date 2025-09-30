@@ -1,5 +1,8 @@
-from typing import Dict, Union, List
-
+from typing import (
+    Dict, 
+    Union, 
+    List
+)
 
 
 class TensorBoard:
@@ -8,41 +11,50 @@ class TensorBoard:
         self.model = model
         self.writer = writer
 
-    def start_to_write(self, metrics_result: Dict[str, Union[int, float]], step, loss=None, histogram=False, optimizer=None):
-        
+    def start_to_write(
+        self, 
+        metrics_result: Dict[str, Union[int, float]], 
+        step, 
+        loss=None, 
+        histogram=False, 
+        optimizer=None
+    ):
         
         if loss is not None:
 
-            self.writer.add_scalar(tag="loss",
-                            scalar_value=loss, 
-                            global_step=step
-                            )
+            self.writer.add_scalar(
+                tag="loss",
+                scalar_value=loss, 
+                global_step=step
+            )
 
         if histogram is True:
             for name, param in self.model.named_parameters():
-                self.writer.add_histogram(tag=name,
-                                          values=param,
-                                          global_step=step
-                                        )
+                self.writer.add_histogram(
+                    tag=name,
+                    values=param,
+                    global_step=step
+                )
 
         if metrics_result is not None:
             for name, result in metrics_result.items():
                 if isinstance(result, (int, float)):
-                    self.writer.add_scalar(tag=name,
-                                    scalar_value=result, 
-                                    global_step=step
-                                    )
+                    self.writer.add_scalar(
+                        tag=name,
+                        scalar_value=result, 
+                        global_step=step
+                    )
 
         if optimizer is not None:
 
             for idx, lr in enumerate(self._get_lr(optimizer=optimizer), start=1):
-                self.writer.add_scalar(tag=str(idx),
-                                        scalar_value=lr, 
-                                        global_step=step
-                                        )
-
+                self.writer.add_scalar(
+                    tag=str(idx),
+                    scalar_value=lr, 
+                    global_step=step
+                )
+                    
         self.writer.close()
-
 
     def _get_lr(self, optimizer) -> List[float]:
 
@@ -50,7 +62,6 @@ class TensorBoard:
             lr = []
             for i in optimizer.param_groups:
                 lr.append(i['lr'])
-
 
         else:
             lr = optimizer.get_last_lr()

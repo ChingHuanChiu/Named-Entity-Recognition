@@ -4,8 +4,6 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 from transformers import AutoTokenizer
 
-
-
 from src.extract.extract import BIOExtracter, IExtract
 from src.model.config import HUGGINGFACE_MODEL
 from src.model.ner import NERBertBiLSTMWithCRF
@@ -48,13 +46,14 @@ templates = Jinja2Templates(directory="app/views/")
 @router.get('/')
 async def form_post(request: Request):
     
-    return templates.TemplateResponse('index.html',
-                                      context={'request': request,
-                                               'result': ''
-                                               }
-                                      )
+    return templates.TemplateResponse(
+        'index.html',
+        context={
+            'request': request,
+            'result': ''
+        }
+    )
 
-    
 
 EXTRACTOR = None
 @router.post('/')
@@ -71,19 +70,10 @@ async def form_post(request: Request):
     result = get_inference(EXTRACTOR, context)
 
     
-    return templates.TemplateResponse('index.html',
-                                       context={'request': request,
-                                                'result': result
-                                               }
-                                     )
-    
-    
-    
-    
-    
-        
-    
-        
-        
-    
-
+    return templates.TemplateResponse(
+        'index.html',
+        context={
+            'request': request,
+            'result': result
+        }
+    )

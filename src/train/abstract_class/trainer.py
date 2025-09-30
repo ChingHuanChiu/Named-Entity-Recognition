@@ -1,7 +1,7 @@
 import os
 import time
 from abc import ABCMeta, abstractmethod
-from typing import Callable, List, Optional, Dict, Callable
+from typing import Optional
 from tqdm import tqdm
 
 import numpy as np
@@ -9,8 +9,6 @@ import dill
 import torch
 from torch.utils.tensorboard import SummaryWriter
 import torch.distributed as dist
-
-
 
 from src.train.tensorboard import TensorBoard 
 from src.model.config import SEQ_MAX_LENGTH
@@ -28,27 +26,24 @@ class Trainer(metaclass=ABCMeta):
         self.optimizer = None
         self.lr_scheduler = None
 
-
-
     @abstractmethod
     def train_step(self, data_batch):
         """define the training step  per batch"""
         raise NotImplemented("not implemented")
 
-
     def validation_loop(self, epoch):
         return None
 
-    def start_to_train(self, 
-                       train_data_loader,
-                       epochs: int,
-                       checkpoint_path: str,
-                       tensorboard_path: str,
-                       earlystopping_tolerance: Optional[int] = None,
-                       ):
+    def start_to_train(
+        self, 
+        train_data_loader,
+        epochs: int,
+        checkpoint_path: str,
+        tensorboard_path: str,
+        earlystopping_tolerance: Optional[int] = None,
+    ):
 
         self._count_total_parameters()
-
 
         writer = SummaryWriter(tensorboard_path)
         
@@ -88,8 +83,6 @@ class Trainer(metaclass=ABCMeta):
 
             print(f"Epoch Loss :  {epoch_loss}")
 
-
-
             TrainTB = TensorBoard(writer=writer,
                                   model=self.model)
             
@@ -116,7 +109,6 @@ class Trainer(metaclass=ABCMeta):
                         print(f'EarlyStopping during epoch {epoch + 1}')
                         break
 
-
             print(f'saving model for epoch {epoch}')
             model_path = checkpoint_path + f'model_epoch{epoch}'
             if not 'gcs' in checkpoint_path:
@@ -140,7 +132,6 @@ class Trainer(metaclass=ABCMeta):
             epoch_end = time.time()
             print(f'time for one epoch: {epoch_end - epoch_start} secconds')
 
-
         print('Finish training')
 
     def _count_total_parameters(self):
@@ -150,7 +141,6 @@ class Trainer(metaclass=ABCMeta):
             num_parameters += parameter.numel()
         print(f'number of parameters: {num_parameters}')
         
-
 
 class DDPTrainer(metaclass=ABCMeta):
 
@@ -167,34 +157,30 @@ class DDPTrainer(metaclass=ABCMeta):
         # dist.barrier()
         self.world_size = dist.get_world_size()
 
-
-
     @abstractmethod
     def train_step(self, data_batch):
         """define the training step  per batch"""
         raise NotImplemented("not implemented")
 
-
     def validation_loop(self, epoch):
         return None
 
-    def start_to_train(self, 
-                       train_data_loader,
-                       epochs: int,
-                       checkpoint_path: str,
-                       tensorboard_path: str,
-                       local_rank: int,
-                       sampler,
-                       earlystopping_tolerance: Optional[int] = None,
-                       ):
+    def start_to_train(
+        self, 
+        train_data_loader,
+        epochs: int,
+        checkpoint_path: str,
+        tensorboard_path: str,
+        local_rank: int,
+        sampler,
+        earlystopping_tolerance: Optional[int] = None,
+    ):
         
         if earlystopping_tolerance is not None:
             earlystop = EarlyStopping(earlystopping_tolerance)
         else:
             earlystop = None
             print('Training without Earlystopping')
-
-
 
         if dist.get_rank() == 0: # master rank
             self._count_total_parameters()
@@ -285,11 +271,7 @@ class DDPTrainer(metaclass=ABCMeta):
             # print(f'time for one rank{dist.get_rank()}_epoch: {epoch_end - epoch_start} seconds')
             dist.barrier()
 
-
         print('Finish training')
-
-                
-
 
     def _count_total_parameters(self):
         num_parameters = 0
@@ -298,15 +280,11 @@ class DDPTrainer(metaclass=ABCMeta):
             num_parameters += parameter.numel()
         print(f'number of parameters: {num_parameters}')
 
-
-
-
     def gather_all(self, value_tensor):
         
         tensor_list = [torch.zeros_like(value_tensor).to(dist.get_rank()) for _ in range(self.world_size)]
         dist.all_gather(tensor_list, value_tensor)
         return tensor_list
-
 
     def reduce_sum_all(self, value_tensor):
         if not isinstance(value_tensor, torch.Tensor):
@@ -315,7 +293,3 @@ class DDPTrainer(metaclass=ABCMeta):
         dist.all_reduce(value_tensor, op=dist.ReduceOp.SUM)
 
         return value_tensor
-
-
-
-

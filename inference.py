@@ -1,8 +1,5 @@
-
-
 import pandas as pd
 from transformers import AutoTokenizer
-
 
 from src.model.config import HUGGINGFACE_MODEL
 
@@ -16,8 +13,6 @@ def get_prediction(context: str, extracter: IExtract) -> pd.DataFrame:
     result_dict = extracter.extract(context)
         
     return result_dict
-
-
 
 
 if __name__ == '__main__':
@@ -40,7 +35,3 @@ if __name__ == '__main__':
         res = get_prediction(input_context, extractor)
         pprint(res)
         print('=' * 50)
-
-
-
-

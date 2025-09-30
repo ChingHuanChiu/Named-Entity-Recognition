@@ -7,15 +7,16 @@ from transformers import BertModel
 from torchcrf import CRF
 import torch.nn.functional as F
 
-
-
-from src.model.config import HUGGINGFACE_MODEL, SEQ_MAX_LENGTH
+from src.model.config import HUGGINGFACE_MODEL
 
 
 class NERBertWithCRF(nn.Module):
-    
 
-    def __init__(self, num_label: int, hidden_dropout_prob=0.2) -> None:
+    def __init__(
+        self, 
+        num_label: int, 
+        hidden_dropout_prob=0.2
+    ) -> None:
         super().__init__()
         self.num_label = num_label
  
@@ -26,13 +27,11 @@ class NERBertWithCRF(nn.Module):
         self.logits = nn.Linear(768, self.num_label)
         self.crf = CRF(self.num_label, batch_first=True)
 
-
     def forward(self, inputs_dict, y_true=None):
 
         mask = inputs_dict["attention_mask"]
         
         mask = mask.bool()
-        
 
         last_hidden_state = self.bert(**inputs_dict).last_hidden_state
         
@@ -40,7 +39,6 @@ class NERBertWithCRF(nn.Module):
 
         logits = self.logits(last_hidden_state)
 
-        
         decode_sequence = self.crf.decode(emissions=logits, mask=mask)
 
 
@@ -52,7 +50,6 @@ class NERBertWithCRF(nn.Module):
             
         return  decode_sequence
 
-    
     def init_weights(self):
 
         for m in self.logits.modules():
@@ -61,15 +58,15 @@ class NERBertWithCRF(nn.Module):
                 m.bias.data.zero_()
 
 
-
-
 class NERBertBiLSTMWithCRF(nn.Module):
 
-    def __init__(self, 
-                 num_label: int, 
-                 lstm_num_layers: int, 
-                 local_rank:int,
-                 device: str) -> None:
+    def __init__(
+        self, 
+        num_label: int, 
+        lstm_num_layers: int, 
+        local_rank:int,
+        device: str
+    ) -> None:
 
         super().__init__()
         self.num_label = num_label
@@ -80,36 +77,32 @@ class NERBertBiLSTMWithCRF(nn.Module):
         
         self.num_layers = lstm_num_layers
         self.bi_lstm = nn.LSTM(
-                            input_size=768, 
-                            hidden_size=128,
-                            num_layers=lstm_num_layers, 
-                            batch_first=True, 
-                            bidirectional=True)
+            input_size=768, 
+            hidden_size=128,
+            num_layers=lstm_num_layers, 
+            batch_first=True, 
+            bidirectional=True
+        )
 
         
         self.linear = nn.Linear(256, num_label)
         self.dropout = nn.Dropout(p=0.1)
 
         self.crf = CRF(num_label, batch_first=True)
-
         
-
     def forward(self, inputs_dict, y_true=None):
         mask = inputs_dict["attention_mask"]
         mask = mask.bool()
 
         last_hidden_state = self.bert(**inputs_dict).last_hidden_state
 
-
         
         h_0 = torch.randn(2 * self.num_layers, last_hidden_state.size()[0], 128).to(torch.device(self.device, self.local_rank)) #shape: (num_direction * num_layers, bs, hidden_size)
         c_0 = torch.randn(2 * self.num_layers, last_hidden_state.size()[0], 128).to(torch.device(self.device, self.local_rank))
 
-
         last_hidden_state, (h,c) = self.bi_lstm(last_hidden_state, (h_0, c_0))
         
         logits = self.linear(self.dropout(F.relu(last_hidden_state)))
-    
         
         decode_sequence = self.crf.decode(emissions=logits, mask=mask)
 
@@ -118,10 +111,7 @@ class NERBertBiLSTMWithCRF(nn.Module):
             
             return crf_log_likelihood, decode_sequence
             
-
-
         return  decode_sequence
-
     
     def init_weights(self):
 
@@ -138,7 +128,6 @@ class NERBertBiLSTMWithCRF(nn.Module):
                         nn.init.zeros_(p)
                         
                         
-                        
 class NERBertCNNWithCRF(nn.Module):
 
     def __init__(self, num_label: int, local_rank:int) -> None:
@@ -147,20 +136,18 @@ class NERBertCNNWithCRF(nn.Module):
         self.local_rank = local_rank
         self.bert = BertModel.from_pretrained(HUGGINGFACE_MODEL, output_attentions=True)
             
-        
         #https://pytorch.org/docs/stable/generated/torch.nn.Conv1d.html
         filter_sizes = [5] 
         num_filters = [256] 
         self.conv1d_list = nn.ModuleList([
-            nn.Conv1d(in_channels=768,
-                      out_channels=num_filters[i],
-                      kernel_size=filter_sizes[i],
-                      padding='same'
-                     )
+            nn.Conv1d(
+                in_channels=768,
+                out_channels=num_filters[i],
+                kernel_size=filter_sizes[i],
+                padding='same'
+            )
             for i in range(len(filter_sizes))
         ])
-        
-        
         
         self.linear = nn.Linear(np.sum(num_filters), num_label)
   
@@ -174,8 +161,6 @@ class NERBertCNNWithCRF(nn.Module):
         mask = mask.bool()
 
         last_hidden_state = self.bert(**inputs_dict).last_hidden_state
-
-  
        
         x_reshaped = last_hidden_state.permute(0, 2, 1)
         x_conv_list = [F.relu(conv1d(x_reshaped)) for conv1d in self.conv1d_list]
@@ -187,13 +172,10 @@ class NERBertCNNWithCRF(nn.Module):
 
         decode_sequence = self.crf.decode(emissions=logits, mask=mask)
 
-        
         if y_true is not None:
             crf_log_likelihood = self.crf(emissions=logits, tags=y_true, mask=mask, reduction='mean')
             
             return crf_log_likelihood, decode_sequence
-            
-
 
         return  decode_sequence
 
@@ -203,15 +185,3 @@ class NERBertCNNWithCRF(nn.Module):
         for m in self.children():
             if isinstance(m, (nn.Linear, nn.Conv1d)):
                 nn.init.xavier_normal_(m.weight)
-
-
-
- 
-
-
-        
-
-
-
-
-
